@@ -1,2 +1,3 @@
 # swm
-dwm like window manager
+dwm like window manager 
+and the first time using gpg keys
