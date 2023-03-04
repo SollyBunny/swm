@@ -9,17 +9,25 @@ Run `make`
 Run `make install`
 
 ## Testing
-There are scripts in `test/` to test `swm`
-###### conf.sh
-* Contains display to use for XEPHYR
-###### run.sh
-* Compiles and runs `swm` on XEPHYR
-###### valgrind.sh
-* Debug compiles and runs `swm` on XEPHYR with `valgrind`
-###### xephyr.sh
-* Starts XEPHYR window 1920x1080
-###### xephyrsmall.sh
-* Starts XEPHYR window 900x1080
+There are scripts in `test/` to test `swm`  
+  
+`conf.sh`:  
+> Contains display to use  
+
+`x.sh`:  
+> Run on a new `X` server using `startx`
+
+`xephyr.sh`:  
+> Starts `XEPHYR` window 1920x1080  
+
+`xephyrsmall.sh`:  
+> Starts `XEPHYR` window 900x1080  
+
+`run.sh`:  
+> Compiles and runs `swm` on `XEPHYR`  
+
+`valgrind.sh`:  
+> Debug compiles and runs `swm` on `XEPHYR` with `valgrind`  
 
 
 ## Features
