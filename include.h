@@ -14,6 +14,9 @@
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <unistd.h>
+	#include <sys/mman.h>
+
+	#define UpdateStatus (1 << 30)
 
 // Enums
 
@@ -23,6 +26,22 @@
 	enum { ClkRoot, ClkClient };
 
 // Structs
+
+	static struct {
+		Window win;
+		GC gc;
+		XPoint selrect[4];
+		XPoint winrect[4];
+		XVisualInfo visual;
+		XSetWindowAttributes attr;
+		XftFont *xftfont;
+		XftFontInfo *xftfontinfo;
+		XftDraw *xftgc;
+		XftColor xftwhite;
+		XftColor xftblack;
+		FcChar8 *xfttext;
+		int winwidth;
+	} bar;
 
 	typedef struct {
 		const void* v;
@@ -57,6 +76,23 @@
 
 // Functions
 
+	// Other
+		static void __attribute__((noreturn)) die(const char msg[]) {
+			printf("Error: %s\n", msg);  
+			_Exit(1);
+		}
+		static void scan();
+		static void updatetitle(Client *c);
+		static inline void createbar();
+		static void (*updatebar)();
+		Client *wintoclient(Window w);
+		static void deskadd(Client *c);
+		static void deskremove(Client *c);
+		void grabkeys(Window w);
+		void grabbtns(Window w, int focus);
+		void focus(Client *c);
+		void resize(Client *c, int x, int y, int w, int h);
+
 	// Actions
 		static void a_spawn(const Arg *arg);
 		static void a_mousemove(const Arg *arg);
@@ -68,6 +104,7 @@
 		static void a_alttab(const Arg *arg);
 		static void a_kill(const Arg *arg);
 		static void a_toggletop(const Arg *arg);
+		static void a_quit(const Arg *arg);
 
 	// Events
 		static inline void e_buttonpress(XEvent e);
@@ -77,5 +114,8 @@
 		static inline void e_configurerequest(XEvent e);
 		static inline void e_propertynotify(XEvent e);
 
+// Globals
+	static Display *disp;
+	static Window   root;
 
 #endif
