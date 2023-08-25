@@ -1,5 +1,6 @@
 # swm
 A [dwm](https://dwm.suckless.org/) clone made in C with even less bloat (and more bugs)  
+A lot of things are stolen directly from `dwm` and other WMs because the best documentation for `xlib` is code  
 Woudn't recommend using this as a daily driver, but do it anyway :)
 
 ## Compiling

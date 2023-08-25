@@ -11,19 +11,25 @@
 	#include <X11/Xatom.h>
 	#include <X11/Xft/Xft.h>
 	
+	
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <unistd.h>
-	#include <sys/mman.h>
+	#include <signal.h>
+	#include <sys/types.h>
+	#include <sys/wait.h>
+	#include <sys/ipc.h>
+	#include <sys/shm.h>
 
 	#define UpdateStatus (1 << 30)
 
 // Enums
 
-	enum { NetSupported, NetWMName, NetWMState, NetWMCheck, NetWMFullscreen, NetActiveWindow, NetWMWindowType, NetWMWindowTypeDialog, NetClientList, NetLast };
-	enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast };
-	enum { CurNormal, CurResize, CurMove, CurLast };
-	enum { ClkRoot, ClkClient };
+	enum Net  { NetSupported, NetWMName, NetWMState, NetWMCheck, NetWMFullscreen, NetActiveWindow, NetWMWindowType, NetWMWindowTypeDialog, NetClientList, NetLast };
+	enum WM   { WMProtocols, WMDelete, WMState, WMTakeFocus, WMStatus, WMLast };
+	enum Cur  { CurNormal, CurResize, CurMove, CurLast };
+	enum Clk  { ClkRoot, ClkClient };
+	enum Tile { TileNW, TileW, TileSW, TileN, TileFill, TileS, TileNE, TileE, TileSE, TileFullscreen, TileCenter, TileDoubleFullscreen };
 
 // Structs
 
@@ -37,8 +43,9 @@
 		XftFont *xftfont;
 		XftFontInfo *xftfontinfo;
 		XftDraw *xftgc;
-		XftColor xftwhite;
-		XftColor xftblack;
+		XftColor xftfg1;
+		XftColor xftfg2;
+		XftColor xftfg3;
 		FcChar8 *xfttext;
 		int winwidth;
 	} bar;
@@ -98,10 +105,11 @@
 		static void a_mousemove(const Arg *arg);
 		static void a_mouseresize(const Arg *arg);
 		static void a_resize(const Arg *arg);
+		static void a_tile(const Arg *arg);
 		static void a_deskview(const Arg *arg);
 		static void a_deskmove(const Arg *arg);
-		static void a_startalttab(const Arg *arg);
-		static void a_alttab(const Arg *arg);
+		static void a_switchstart(const Arg *arg);
+		static void a_switch(const Arg *arg);
 		static void a_kill(const Arg *arg);
 		static void a_toggletop(const Arg *arg);
 		static void a_quit(const Arg *arg);
@@ -113,9 +121,13 @@
 		static inline void e_destroynotify(XEvent e);
 		static inline void e_configurerequest(XEvent e);
 		static inline void e_propertynotify(XEvent e);
+		static inline void e_clientmessage(XEvent e);
 
 // Globals
 	static Display *disp;
 	static Window   root;
+	static XWindowAttributes rootattrs;
+	#define W rootattrs.width
+	#define H rootattrs.height
 
 #endif

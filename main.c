@@ -2,9 +2,12 @@
 #include "include.h"
 #include "config.h"
 
+#define LEN(l) (sizeof(l) / sizeof((l)[0]))
+
 // Var Declerations
 
 	#define FONTWIDTH (FONTSIZE * 3 / 4)
+	#define BARLESSWINHEIGHT (H - BARHEIGHT - (GAP * 2))
 	#define BARDESKPAD (FONTSIZE / 3)
 	#define BARDESKWIDTH (FONTSIZE + BARDESKPAD)
 	#define BARDESKTOTALWIDTH ((BARDESKWIDTH * DESKTOPNUM) + (BARDESKPAD / 2))
@@ -16,12 +19,14 @@
 	static unsigned int desksnum[DESKTOPNUM];
 	static unsigned int desk = 0;
 
+	static int autostartpids[LEN(autostart)];
+
 	static Cursor cursor[3];
 	
 	static Atom wmatom[WMLast];
 	static Atom netatom[NetLast];
 
-	static char *roottext;
+	static char roottext[ROOTTEXTSIZE];
 
 	static unsigned char stopped = 0;
 
@@ -29,7 +34,6 @@
 
 // Function declerations
 
-	#define LEN(l) (sizeof(l) / sizeof((l)[0]))
 	#define CLEANMASK(mask) ((mask) & ~LockMask)
 
 	#ifndef NOERR
@@ -45,7 +49,7 @@
 		}
 		int xerror(Display *_, XErrorEvent *e) {
 			(void)_;
-			printf("XError: %d\n", e->error_code);
+			printf("swm: XError: %d\n", e->error_code);
 			return 0;
 		}
 	#endif
@@ -59,45 +63,33 @@
 		c->win = win;
 		c->desk = desk;
 		c->istop = 0;
+		c->x = wa.x;
+		c->y = wa.y;
 		c->w = wa.width;
 		c->h = wa.height;
 		c->title[0] = '\0';
 		c->titlelen = 1;
 
+		if (wa.map_state == IsUnmapped)
+			XMapWindow(disp, win);
+
 		// Get property change events such as title changes or size changes
-		XSelectInput(disp, c->win, PropertyChangeMask);
+		XSelectInput(disp, win, PropertyChangeMask);
 		updatetitle(c);
 
 		return c;
 
 	}
 
-	static void scan() { // this is stolen directly from dwm
+	static void scan() {
 		unsigned int i, num;
 		Window *wins = NULL;
 		Client *c;
-		// XWindowAttributes wa;
 		if (XQueryTree(disp, root, (Window *)&dummy, (Window *)&dummy, &wins, &num)) {
-			printf("hi\n");
 			for (i = 0; i < num; ++i) {
 				c = manage(wins[i]);
 				if (c) deskadd(c);
 			}
-			/*for (i = 0; i < num; ++i) {
-				if (
-					!XGetWindowAttributes(disp, wins[i], &wa)
-					|| wa.override_redirect || XGetTransientForHint(dpy, wins[i], (Window *)dummy))
-					continue;
-				if (wa.map_state == IsViewable || getstate(wins[i]) == IconicState)
-					manage(wins[i], &wa);
-			}
-			for (i = 0; i < num; i++) { // now the transients
-				if (!XGetWindowAttributes(dpy, wins[i], &wa))
-					continue;
-				if (XGetTransientForHint(dpy, wins[i], (Window *)dummy)
-				&& (wa.map_state == IsViewable || getstate(wins[i]) == IconicState))
-					manage(wins[i], &wa);
-			}*/
 			if (wins)
 				XFree(wins);
 		}
@@ -139,7 +131,7 @@
 	}
 
 	static void updatebardummy() {
-		
+		printf("swm: Dummy was called\n");
 	}
 	static void updatebarreal() {
 		XClearWindow(disp, bar.win);
@@ -147,34 +139,34 @@
 		bar.selrect[0].x = -BARDESKWIDTH / 32;
 		for (unsigned int i = 0; i < DESKTOPNUM; ++i) {
 			if (i == desk) {
-			
-			} else if (desks[i] != NULL) {
-				XSetForeground(disp, bar.gc, COLWIN);
+				
+			} else if (desks[i] == NULL) {
+				XftDrawStringUtf8(
+					bar.xftgc, 
+					&bar.xftfg1, bar.xftfont, 
+					BARDESKPAD + BARDESKWIDTH * i, FONTSIZE * 4 / 5,
+					bar.xfttext, 1
+				);
+			} else {
+				XSetForeground(disp, bar.gc, COLBG2);
 				XFillPolygon(disp, bar.win, bar.gc, (XPoint*)bar.selrect, 4, Nonconvex, CoordModePrevious);
 				XftDrawStringUtf8(
 					bar.xftgc, 
-					&bar.xftblack, bar.xftfont, 
+					&bar.xftfg2, bar.xftfont, 
 					BARDESKPAD + BARDESKWIDTH * i, FONTSIZE * 4 / 5,
-					bar.xfttext, 1//sizeof(xfttext) / sizeof(xfttext[0])
-				);
-			} else {
-				XftDrawStringUtf8(
-					bar.xftgc, 
-					&bar.xftwhite, bar.xftfont, 
-					BARDESKPAD + BARDESKWIDTH * i, FONTSIZE * 4 / 5,
-					bar.xfttext, 1//sizeof(xfttext) / sizeof(xfttext[0])
+					bar.xfttext, 1
 				);
 			}
 			++bar.xfttext[0];
 			bar.selrect[0].x += BARDESKWIDTH;
 		}
-		bar.xfttext[0] = '1' + desk;
+		bar.xfttext[0] = DESKTOPSTART + desk;
 		bar.selrect[0].x = -BARDESKWIDTH / 32 + BARDESKWIDTH * desk;
-		XSetForeground(disp, bar.gc, COLSEL);
+		XSetForeground(disp, bar.gc, COLBG3);
 		XFillPolygon(disp, bar.win, bar.gc, (XPoint*)bar.selrect, 4, Nonconvex, CoordModePrevious);
 		XftDrawStringUtf8(
 			bar.xftgc, 
-			&bar.xftblack, bar.xftfont, 
+			&bar.xftfg3, bar.xftfont, 
 			BARDESKPAD + BARDESKWIDTH * desk, FONTSIZE * 4 / 5,
 			bar.xfttext, 1//sizeof(xfttext) / sizeof(xfttext[0])
 		);
@@ -188,38 +180,27 @@
 			unsigned int i = 0;
 			do {
 				if (i == 0) {
-					//
-					XSetForeground(disp, bar.gc, COLSEL);
-					/*XFillRectangle(disp, bar.win, bar.gc, 
-						BARDESKTOTALWIDTH + (BARWINWIDTH * i / desksnum[desk]), 0,
-						BARWINWIDTH / desksnum[desk],
-						BARHEIGHT
-					);*/
+					XSetForeground(disp, bar.gc, COLBG3);
 					XFillPolygon(disp, bar.win, bar.gc, (XPoint*)bar.winrect, 4, Nonconvex, CoordModePrevious);
 					XftDrawStringUtf8(
 						bar.xftgc, 
-						&bar.xftblack, bar.xftfont, 
+						&bar.xftfg3, bar.xftfont, 
 						BARDESKTOTALWIDTH + (BARWINWIDTH * i / desksnum[desk]) + (BARWINWIDTH / desksnum[desk] / 2) - (c->titlelen * FONTWIDTH / 2), FONTSIZE * 4 / 5,
 						(FcChar8*)c->title, c->titlelen//sizeof(xfttext) / sizeof(xfttext[0])
 					);
 				} else if (c->istop) {
-					XSetForeground(disp, bar.gc, COLWIN);
-					/*XFillRectangle(disp, bar.win, bar.gc, 
-						BARDESKTOTALWIDTH + (BARWINWIDTH * i / desksnum[desk]), 0,
-						BARWINWIDTH / desksnum[desk],
-						BARHEIGHT
-					);*/
+					XSetForeground(disp, bar.gc, COLBG2);
 					XFillPolygon(disp, bar.win, bar.gc, (XPoint*)bar.winrect, 4, Nonconvex, CoordModePrevious);
 					XftDrawStringUtf8(
 						bar.xftgc, 
-						&bar.xftblack, bar.xftfont, 
+						&bar.xftfg2, bar.xftfont, 
 						BARDESKTOTALWIDTH + (BARWINWIDTH * i / desksnum[desk]) + (BARWINWIDTH / desksnum[desk] / 2) - (c->titlelen * FONTWIDTH / 2), FONTSIZE * 4 / 5,
 						(FcChar8*)c->title, c->titlelen//sizeof(xfttext) / sizeof(xfttext[0])
 					);
 				} else {
 					XftDrawStringUtf8(
 						bar.xftgc, 
-						&bar.xftwhite, bar.xftfont, 
+						&bar.xftfg1, bar.xftfont, 
 						BARDESKTOTALWIDTH + (BARWINWIDTH * i / desksnum[desk]) + (BARWINWIDTH / desksnum[desk] / 2) - (c->titlelen * FONTWIDTH / 2), FONTSIZE * 4 / 5,
 						(FcChar8*)c->title, c->titlelen//sizeof(xfttext) / sizeof(xfttext[0])
 					);
@@ -228,18 +209,21 @@
 				bar.winrect[0].x += (BARDESKPAD / 2) + BARWINWIDTH / desksnum[desk];
 			} while ((c = c->next));
 		}
+		printf("wrtiiotiten %s\n", roottext);
 		XftDrawStringUtf8(
 			bar.xftgc, 
-			&bar.xftwhite, bar.xftfont, 
+			&bar.xftfg1, bar.xftfont, 
 			BARROOTTEXTSTART, FONTSIZE * 4 / 5,
 			(FcChar8*)roottext, ROOTTEXTSIZE
 		);
+		// XSync(disp, False);
+		XFlush(disp);
 	}
 	static void (*updatebar)() = updatebardummy;
 	static inline void createbar() {
 		XMatchVisualInfo(disp, XDefaultScreen(disp), 32, TrueColor, &bar.visual);
 		bar.attr.border_pixel     = 0;
-		bar.attr.background_pixel = 0x00000000 | ((unsigned char)(0xff * ALPHA) << 24);
+		bar.attr.background_pixel = COLBG1;
 	    bar.attr.colormap         = XCreateColormap(disp, root, bar.visual.visual, None);
 	    bar.attr.bit_gravity      = NorthWestGravity;
 		bar.attr.event_mask       = ExposureMask;
@@ -264,16 +248,21 @@
 			bar.xftgc = XftDrawCreate(disp, bar.win, bar.visual.visual, bar.attr.colormap);
 			if (!bar.xftgc) die("Failed to allocate xft gc\n");
 			bar.xfttext = malloc(256 * sizeof(FcChar8));
-			bar.xftwhite.pixel       = 0xFFFFFFFF;
-			bar.xftwhite.color.red   = 65535;
-			bar.xftwhite.color.green = 65535;
-			bar.xftwhite.color.blue  = 65535;
-			bar.xftwhite.color.alpha = 65535;
-			bar.xftblack.pixel       = 0x000000FF;
-			bar.xftblack.color.red   = 0;
-			bar.xftblack.color.green = 0;
-			bar.xftblack.color.blue  = 0;
-			bar.xftblack.color.alpha = 65535;
+			bar.xftfg1.pixel = COLFG1;
+			bar.xftfg1.color.red   = (COLFG1 & 255) << 8;
+			bar.xftfg1.color.green = ((COLFG1 >>  8) & 255) << 8;
+			bar.xftfg1.color.blue  = ((COLFG1 >> 16) & 255) << 8;
+			bar.xftfg1.color.alpha = (COLFG1 >> 24) << 8;
+			bar.xftfg2.pixel = COLFG2;
+			bar.xftfg2.color.red   = (COLFG2 & 255) << 8;
+			bar.xftfg2.color.green = ((COLFG2 >>  8) & 255) << 8;
+			bar.xftfg2.color.blue  = ((COLFG2 >> 16) & 255) << 8;
+			bar.xftfg2.color.alpha = (COLFG2 >> 24) << 8;
+			bar.xftfg3.pixel = COLFG3;
+			bar.xftfg3.color.red   = (COLFG3 & 255) << 8;
+			bar.xftfg3.color.green = ((COLFG3 >>  8) & 255) << 8;
+			bar.xftfg3.color.blue  = ((COLFG3 >> 16) & 255) << 8;
+			bar.xftfg3.color.alpha = (COLFG3 >> 24) << 8;
 			
 			bar.selrect[0].y = 0;
 			bar.selrect[1].x = BARDESKWIDTH + BARDESKWIDTH / 8; //
@@ -315,12 +304,6 @@
 		c->next = desks[c->desk];
 		if (c->next) c->next->last = c;
 		desks[c->desk] = c;
-		if (desk == c->desk) {
-			XSetInputFocus(disp, c->win, RevertToPointerRoot, CurrentTime);
-			grabbtns(c->win, 1);
-			XRaiseWindow(disp, c->win);
-			updatebar();
-		}
 	}
 	static void deskremove(Client *c) {
 		desksnum[c->desk] -= 1;
@@ -441,7 +424,7 @@
 	// Actions
 		static void a_spawn(const Arg *arg) {
 			if (fork() != 0) return;
-			printf("Exec: %s\n", ((char**)arg)[0]);
+			printf("swm: exec %s\n", ((char**)arg)[0]);
 			setsid();
 			//char *cmd[] = {"/usr/local/bin/st", NULL}; // NULL terminated array of char* strings
 			//execvp(cmd[0], cmd);
@@ -518,6 +501,87 @@
 				((int*)arg)[2], ((int*)arg)[3]
 			);
 		}
+		static void a_tile(const Arg *arg) {
+			static int x, y, w, h;
+			switch ((enum Tile)arg) {
+				case TileNW:
+					x = GAP;
+					y = GAP;
+					w = W/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileW:
+					x = GAP;
+					y = GAP;
+					w = W/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT - GAP;
+					break;
+				case TileSW:
+					x = GAP;
+					y = BARLESSWINHEIGHT/2 + GAP;
+					w = W/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileN:
+					x = GAP;
+					y = GAP;
+					w = W - GAP*2;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileFill:
+					x = GAP;
+					y = GAP;
+					w = W - GAP*2;
+					h = BARLESSWINHEIGHT - GAP;
+					break;
+				case TileS:
+					x = GAP;
+					y = BARLESSWINHEIGHT/2 + GAP;
+					w = W - GAP*2;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileNE:
+					x = W/2 + GAP*0.5;
+					y = GAP;
+					w = W/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileE:
+					x = W/2 + GAP*0.5;
+					y = GAP;
+					w = BARLESSWINHEIGHT/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT - GAP;
+					break;
+				case TileSE:
+					x = W/2 + GAP*0.5;
+					y = BARLESSWINHEIGHT/2 + GAP;
+					w = W/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileCenter:
+					x = W/4 + GAP*0.75;
+					y = BARLESSWINHEIGHT/4 - GAP*0.5;
+					w = W/2 - GAP*1.5;
+					h = BARLESSWINHEIGHT/2 - GAP;
+					break;
+				case TileFullscreen:
+					x = 0;
+					y = 0;
+					w = W;
+					h = H;
+					break;
+				case TileDoubleFullscreen:
+					x = -W;
+					y = -H;
+					w = W * 2;
+					h = H * 2;
+					break;
+       		}
+			resize(
+				desks[desk], 
+				x, y, w, h
+			);
+		}
 		static void a_deskview(const Arg *arg) {
 			#define d (unsigned int)(long int)arg
 			if (d == desk) return;
@@ -528,7 +592,7 @@
 				} while ((c = c->next) != NULL);
 			}
 			desk = d;
-			printf("Desktop: %d\n", desk + 1);
+			printf("swm: desktop %d\n", desk + 1);
 			if ((c = desks[desk]) != NULL) { // check there are windows to show
 				do { // hide all windows from current desktop
 					XMapWindow(disp, c->win);
@@ -541,7 +605,6 @@
 		static void a_deskmove(const Arg *arg) {
 			#define d (unsigned int)(long int)arg
 			if (d == desk) return;
-			printf("Move from %d to %d\n", desk, d);
 			Client *c = desks[desk];
 			deskremove(c);
 			XUnmapWindow(disp, c->win);
@@ -555,25 +618,25 @@
 			#undef d
 		}
 
-		static Client *a_alttabnext  = NULL;		
-		static Client *a_alttabstart = NULL;		
-		static Client *a_alttabcur   = NULL;		
-		static void a_startalttab(const Arg *arg) {
+		static Client *a_switchclientnext  = NULL;
+		static Client *a_switchclientstart = NULL;
+		static Client *a_switchclientcur   = NULL;
+		static void a_switchstart(const Arg *arg) {
 			(void)arg;
-			a_alttabstart = desks[desk];
-			if (a_alttabstart != NULL) {
-				a_alttabnext  = a_alttabstart->next;
-				if (a_alttabnext == NULL) a_alttabstart = NULL;
+			a_switchclientstart = desks[desk];
+			if (a_switchclientstart != NULL) {
+				a_switchclientnext  = a_switchclientstart->next;
+				if (a_switchclientnext == NULL) a_switchclientstart = NULL;
 			}
 		}
-		static void a_alttab(const Arg *arg) {
+		static void a_switch(const Arg *arg) {
 			(void)arg;
-			if (a_alttabstart == NULL) return;
-			a_alttabcur = a_alttabnext->next;
-			focus(a_alttabnext);
+			if (a_switchclientstart == NULL) return;
+			a_switchclientcur = a_switchclientnext->next;
+			focus(a_switchclientnext);
 			updatebar();
-			a_alttabnext = a_alttabcur;
-			if (a_alttabnext == NULL) a_alttabnext = a_alttabstart;
+			a_switchclientnext = a_switchclientcur;
+			if (a_switchclientnext == NULL) a_switchclientnext = a_switchclientstart;
 		}
 		static void a_kill(const Arg *arg) {
 			(void)arg;
@@ -630,9 +693,9 @@
 			#if 1
 				c = desks[desk];
 				if (c == NULL) { // empty
-					printf("Desktop: Empty\n");
+					printf("swm: desktop empty\n");
 				} else {
-					printf("Desktop (%d):\n", desksnum[desk]);
+					printf("swm: desktop %d):\n", desksnum[desk]);
 					unsigned int i = 0;
 					do {
 						printf("\t%u: %lu %s", i, c->win, c->title);
@@ -680,8 +743,7 @@
 				(W - c->w) / 2, (H - c->h) / 2,
 				c->w, c->h
 			);
-			XMapWindow(disp, c->win);
-
+			focus(c);
 		}
 		static inline void e_destroynotify(XEvent e) {
 			static Client *c;
@@ -703,10 +765,8 @@
 		}
 		void e_propertynotify(XEvent e) {
 			static Client *c;
-			if (e.xproperty.state == PropertyDelete) {
-				return; // ignore
-			} else if (e.xproperty.atom == XA_WM_NAME) {
-				updatebar(); // update status
+			if (e.xproperty.window == root) {
+				
 			} else if ((c = wintoclient(e.xproperty.window))) {
 				/*switch(ev.xproperty.atom) {
 					case XA_WM_NORMAL_HINTS:
@@ -723,14 +783,36 @@
 				}
 			}
 		}
+		void e_clientmessage(XEvent e) {
+			if (
+				e.xproperty.window == root &&
+				e.xclient.message_type == wmatom[WMProtocols] &&
+				e.xclient.data.l[0] == wmatom[WMStatus]
+			) {
+				setroottext();
+				printf("The thign we found was %s\n", roottext);
+				updatebar();
+			}
+		}
+
+void signalint(int _) {
+	printf("swm: Stopped with ctrl-c\n");
+	stopped = 1;
+	signal(SIGINT, SIG_DFL);
+}
 
 int main() {
 
+	// Install handelers
+		struct sigaction signalintact;
+		signalintact.sa_handler = signalint;
+		sigaction(SIGINT, &signalintact, NULL);
+
 	// Setup Xlib
 		printf("Display: %s\n", getenv("DISPLAY"));
-	
 		if ((disp = XOpenDisplay(NULL)) == NULL) die("Failed to open Display");
 		root = XDefaultRootWindow(disp);
+		XGetWindowAttributes(disp, root, &rootattrs);
 
 	// Check for other wms (by checking if root is taken)
 		#ifndef NOERR
@@ -751,6 +833,7 @@ int main() {
 		wmatom[WMDelete]               = XInternAtom(disp, "WM_DELETE_WINDOW",           False);
 		wmatom[WMState]                = XInternAtom(disp, "WM_STATE",                   False);
 		wmatom[WMTakeFocus]            = XInternAtom(disp, "WM_TAKE_FOCUS",              False);
+		wmatom[WMStatus]               = XInternAtom(disp, "WM_STATUS",                  False);
 		netatom[NetActiveWindow]       = XInternAtom(disp, "_NET_ACTIVE_WINDOW",         False);
 		netatom[NetSupported]          = XInternAtom(disp, "_NET_SUPPORTED",             False);
 		netatom[NetWMName]             = XInternAtom(disp, "_NET_WM_NAME",               False);
@@ -775,28 +858,45 @@ int main() {
 
 	// Scan for windows
 		scan();
-			
-	focus(NULL);
+
+	if (desks[desk]) focus(desks[desk]);
+	else             focus(NULL);
 	XSelectInput(disp, root, wa.event_mask);
 	createbar();
 
 	// Roottext
-		roottext = mmap(NULL, ROOTTEXTSIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-		if (fork() != 0) {
-			setroottext();
-			exit(0);
-		}
+		// if (fork() != 0) {
+		// 	Display *tempdisp = XOpenDisplay(NULL);
+		// 	while (1) {
+		// 		XEvent statusevent;
+		// 		statusevent.type = ClientMessage;
+		// 		statusevent.xclient.window = root;
+		// 		statusevent.xclient.message_type = wmatom[WMProtocols];
+		// 		statusevent.xclient.format = 32;
+		// 		statusevent.xclient.data.l[0] = wmatom[WMStatus];
+		// 		statusevent.xclient.data.l[1] = CurrentTime;
+		// 		XSendEvent(tempdisp, root, False, SubstructureRedirectMask, &statusevent);
+		// 		XSync(tempdisp, False);
+		// 		sleep(1);
+		// 	}
+		// 	exit(0);
+		// }
 	
 	// Autostart
 		const char **p = autostart;
+		unsigned int i = 0;
 		while (*p) {
-			printf("Exec '%s'\n", *p);
-			if (fork() == 0) {
+			printf("swm: exec '%s'\n", *p);
+			dummy = fork();
+			if (dummy == 0) {
 				setsid();
 				execvp(*p, (char *const *)p);
 				exit(1);
 			}
-			/* skip arguments */
+			// Add pid to pids
+			autostartpids[i] = dummy;
+			++i;
+			// skip arguments
 			while (*(++p));
 			++p;
 		}
@@ -812,23 +912,32 @@ int main() {
 				case DestroyNotify:    e_destroynotify(e);    break;
 				case ConfigureRequest: e_configurerequest(e); break;
 				case PropertyNotify:   e_propertynotify(e);   break;
+				case ClientMessage:    e_clientmessage(e);    break;
 			}
 		}
 
 	// Free stuff
+
+		for (unsigned int i = 0; i < LEN(autostart); ++i)
+			kill(autostartpids[i], SIGTERM);
 
 		XDestroyWindow(disp, bar.win);
 		XFreeGC(disp, bar.gc);
 		if (bar.xftfont->pattern)
 			FcPatternDestroy(bar.xftfont->pattern);
 		XftFontClose(disp, bar.xftfont);
-		
+
 		XDeleteProperty(disp, root, netatom[NetActiveWindow]);
 		XUngrabKey(disp, AnyKey, AnyModifier, root);
 		XSetInputFocus(disp, PointerRoot, RevertToPointerRoot, CurrentTime);
-		
+
 		XSync(disp, False);
 		XCloseDisplay(disp);
+
+		for (unsigned int i = 0; i < LEN(autostart); ++i)
+			waitpid(autostartpids[i], NULL, 0);
+
+		printf("swm: Bye!");
 
 	return 0;
 }
