@@ -2,10 +2,26 @@
 #include <time.h>
 #include "include.h"
 
-// #define NOERR
+#define NOERR
 
 #define GAP 10
 #define BARHEIGHT 18
+
+// Colors for bar
+#define ALPHA 0.7
+#define OPAQUE 1.0
+#define ALPHAMASK ((unsigned int)(0xff * 0.7) << 24)
+#define OPAQUEMASK ((unsigned int)(0xff * 1.0) << 24)
+
+// Default colors
+#define COLBG1 (0x000000 | ALPHAMASK)
+#define COLFG1 (0xffffff | OPAQUEMASK)
+// Used for highlighted
+#define COLBG2 (0x000000 | ALPHAMASK)
+#define COLFG2 (0xffddff | OPAQUEMASK)
+// Used for selected
+#define COLBG3 (0xffddff | OPAQUEMASK)
+#define COLFG3 (0x000000 | ALPHAMASK)
 
 // How many desktops there are
 #define DESKTOPNUM 9

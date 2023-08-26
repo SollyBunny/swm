@@ -209,15 +209,13 @@
 				bar.winrect[0].x += (BARDESKPAD / 2) + BARWINWIDTH / desksnum[desk];
 			} while ((c = c->next));
 		}
-		printf("wrtiiotiten %s\n", roottext);
+		printf("The thign we found was %s\n", roottext);
 		XftDrawStringUtf8(
 			bar.xftgc, 
 			&bar.xftfg1, bar.xftfont, 
 			BARROOTTEXTSTART, FONTSIZE * 4 / 5,
 			(FcChar8*)roottext, ROOTTEXTSIZE
 		);
-		// XSync(disp, False);
-		XFlush(disp);
 	}
 	static void (*updatebar)() = updatebardummy;
 	static inline void createbar() {
@@ -541,26 +539,26 @@
 					h = BARLESSWINHEIGHT/2 - GAP;
 					break;
 				case TileNE:
-					x = W/2 + GAP*0.5;
+					x = W/2 + GAP/2;
 					y = GAP;
 					w = W/2 - GAP*1.5;
 					h = BARLESSWINHEIGHT/2 - GAP;
 					break;
 				case TileE:
-					x = W/2 + GAP*0.5;
+					x = W/2 + GAP/2;
 					y = GAP;
-					w = BARLESSWINHEIGHT/2 - GAP*1.5;
+					w = W/2 - GAP*1.5;
 					h = BARLESSWINHEIGHT - GAP;
 					break;
 				case TileSE:
-					x = W/2 + GAP*0.5;
+					x = W/2 + GAP/2;
 					y = BARLESSWINHEIGHT/2 + GAP;
 					w = W/2 - GAP*1.5;
 					h = BARLESSWINHEIGHT/2 - GAP;
 					break;
 				case TileCenter:
 					x = W/4 + GAP*0.75;
-					y = BARLESSWINHEIGHT/4 - GAP*0.5;
+					y = BARLESSWINHEIGHT/4 - GAP/2;
 					w = W/2 - GAP*1.5;
 					h = BARLESSWINHEIGHT/2 - GAP;
 					break;
@@ -606,15 +604,14 @@
 			#define d (unsigned int)(long int)arg
 			if (d == desk) return;
 			Client *c = desks[desk];
-			deskremove(c);
 			XUnmapWindow(disp, c->win);
-			c->desk = d;
-			deskadd(c);
-			XMapWindow(disp, c->win);
+			deskremove(c);
 			if (desks[desk]) { // don't focus new top if no more clients
 				XSetInputFocus(disp, desks[desk]->win, RevertToPointerRoot, CurrentTime);
 				XRaiseWindow(disp, desks[desk]->win);
 			}
+			c->desk = d;
+			deskadd(c);
 			#undef d
 		}
 
@@ -865,22 +862,22 @@ int main() {
 	createbar();
 
 	// Roottext
-		// if (fork() != 0) {
-		// 	Display *tempdisp = XOpenDisplay(NULL);
-		// 	while (1) {
-		// 		XEvent statusevent;
-		// 		statusevent.type = ClientMessage;
-		// 		statusevent.xclient.window = root;
-		// 		statusevent.xclient.message_type = wmatom[WMProtocols];
-		// 		statusevent.xclient.format = 32;
-		// 		statusevent.xclient.data.l[0] = wmatom[WMStatus];
-		// 		statusevent.xclient.data.l[1] = CurrentTime;
-		// 		XSendEvent(tempdisp, root, False, SubstructureRedirectMask, &statusevent);
-		// 		XSync(tempdisp, False);
-		// 		sleep(1);
-		// 	}
-		// 	exit(0);
-		// }
+		if (fork() != 0) {
+			Display *tempdisp = XOpenDisplay(NULL);
+			while (1) {
+				XEvent statusevent;
+				statusevent.type = ClientMessage;
+				statusevent.xclient.window = root;
+				statusevent.xclient.message_type = wmatom[WMProtocols];
+				statusevent.xclient.format = 32;
+				statusevent.xclient.data.l[0] = wmatom[WMStatus];
+				statusevent.xclient.data.l[1] = CurrentTime;
+				XSendEvent(tempdisp, root, False, SubstructureRedirectMask, &statusevent);
+				XSync(tempdisp, False);
+				sleep(1);
+			}
+			exit(0);
+		}
 	
 	// Autostart
 		const char **p = autostart;
